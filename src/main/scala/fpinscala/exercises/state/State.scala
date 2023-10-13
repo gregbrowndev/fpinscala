@@ -1,5 +1,17 @@
 package fpinscala.exercises.state
 
+import scala.annotation.tailrec
+
+/*
+scala>
+import fpinscala.exercises.state.RNG.nonNegativeInt
+
+scala> nonNegativeInt(RNG.Simple(1))
+val res2: (Int, fpinscala.exercises.state.RNG) = (384748,Simple(25214903928))
+
+scala> RNG.ints(5)(RNG.Simple(1))
+val res4: (List[Int], fpinscala.exercises.state.RNG) = (List(384748, -1151252339, -549383847, 1612966641, -883454042),Simple(25214903928))
+*/
 
 trait RNG:
   def nextInt: (Int, RNG) // Should generate a random `Int`. We'll later define other functions in terms of `nextInt`.
@@ -26,17 +38,62 @@ object RNG:
       val (a, rng2) = s(rng)
       (f(a), rng2)
 
-  def nonNegativeInt(rng: RNG): (Int, RNG) = ???
+  def nonNegativeInt(rng: RNG): (Int, RNG) =
+    val (i1, rng2) = rng.nextInt
+    val result = if i1 == Int.MinValue then Int.MaxValue else Math.abs(i1)
+    (result, rng2)
 
-  def double(rng: RNG): (Double, RNG) = ???
+  def double(rng: RNG): (Double, RNG) =
+    val (i1, rng2) = nonNegativeInt(rng)
+    (i1 / (Int.MaxValue.toDouble + 1), rng2)
 
-  def intDouble(rng: RNG): ((Int,Double), RNG) = ???
 
-  def doubleInt(rng: RNG): ((Double,Int), RNG) = ???
+  def intDouble(rng: RNG): ((Int,Double), RNG) =
+    val (i1, rng2) = rng.nextInt
+    val (d1, rng3) = double(rng2)
+    (i1 -> d1, rng3)
 
-  def double3(rng: RNG): ((Double,Double,Double), RNG) = ???
+  def doubleInt(rng: RNG): ((Double,Int), RNG) =
+    val (i1, rng2) = rng.nextInt
+    val (d1, rng3) = double(rng2)
+    (d1 -> i1, rng3)
 
-  def ints(count: Int)(rng: RNG): (List[Int], RNG) = ???
+  def double3(rng: RNG): ((Double,Double,Double), RNG) =
+    val (d1, rng2) = double(rng)
+    val (d2, rng3) = double(rng2)
+    val (d3, rng4) = double(rng3)
+    ((d1, d2, d3), rng4)
+
+  // Note: using unfold didn't quite work as it doesn't return the final state only the list of ints
+//  def ints(count: Int)(rng: RNG): (List[Int], RNG) =
+//    List.unfold((rng, count)) {
+//      case (r, n) if n > 0 =>
+//        val (i1, r2) = r.nextInt
+//        Some(i1, (r2, n - 1))
+//      case _ => None
+//    }
+
+  // Got unfold to work by generate a List[(Int, RNG)] then foldRight to accumulate
+  // the List[Int] and last RNG. However, this is not very nice looking
+  def ints2(count: Int)(rng: RNG): (List[Int], RNG) =
+    List.unfold((rng, count)) {
+      case (r, n) if n > 0 =>
+        val (i1, r2) = r.nextInt
+        Some((i1, r2), (r2, n - 1))
+      case _ => None
+    }.foldRight((List.empty[Int], rng)) {
+      case ((i, r), (acc, _)) => (i :: acc, r)
+    }
+
+  def ints(count: Int)(rng: RNG): (List[Int], RNG) =
+    @tailrec
+    def go(n: Int, r: RNG, xs: List[Int]): (List[Int], RNG) =
+      if n <= 0 then (xs, r)
+      else
+        val (x, r2) = r.nextInt
+        go(n - 1, r2, x :: xs)
+
+    go(count, rng, Nil)
 
   def map2[A, B, C](ra: Rand[A], rb: Rand[B])(f: (A, B) => C): Rand[C] = ???
 
