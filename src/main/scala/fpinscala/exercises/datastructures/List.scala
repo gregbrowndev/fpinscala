@@ -178,7 +178,7 @@ object List: // `List` companion object. Contains functions for creating and wor
 
     reverse(loop(a, b, Nil))
 
-  def hasSubsequence[A](sup: List[A], sub: List[A]): Boolean =
+  def hasSubsequence2[A](sup: List[A], sub: List[A]): Boolean =
     def go(l: List[A], s: List[A]): Boolean =
       (l,s) match
         case (_, Nil) => true
@@ -187,4 +187,23 @@ object List: // `List` companion object. Contains functions for creating and wor
 
     if length(sup) == 0 then false
     else if go(sup, sub) then true
-    else hasSubsequence(tail(sup), sub)
+    else hasSubsequence2(tail(sup), sub)
+
+  @annotation.tailrec
+  def startsWith[A](l: List[A], prefix: List[A]): Boolean = (l, prefix) match
+    case (Cons(h1, t1), Cons(h2, t2)) if h1 == h2 => startsWith(t1, t2)
+    case (_, Nil) => true
+    case _ => false
+
+  @annotation.tailrec
+  def hasSubsequence[A](sup: List[A], sub: List[A]): Boolean = sup match
+    case Nil => sub == Nil
+    case s @ Cons(_, t) => startsWith(s, sub) || hasSubsequence(t, sub)
+
+  /*
+  scala> List.hasSubsequence(List(1, 2, 3, 4), List(2, 3))
+  val res0: Boolean = true
+
+  scala> List.hasSubsequence(List(1, 2, 3, 4), List(2, 4))
+  val res2: Boolean = false
+  */
