@@ -26,6 +26,9 @@ val res0: (Int, fpinscala.exercises.state.RNG) = (10,Simple(1))
 
 scala> RNG.mapViaFlatMap(RNG.unit(5))(_ * 2)(RNG.Simple(1))
 val res1: (Int, fpinscala.exercises.state.RNG) = (10,Simple(1))
+
+scala> Candy.simulateMachine(List(Input.Coin, Input.Turn)).run(Machine(true, 10, 0))
+val res1: ((Int, Int), fpinscala.exercises.state.Machine) = ((1,9),Machine(true,9,1))
 */
 
 trait RNG:
@@ -144,23 +147,32 @@ object State:
   def unit[S, A](a: A): State[S, A] =
     s => (a, s)
 
+  def apply[S, A](f: S => (A, S)): State[S, A] = f
+
+  def get[S]: State[S, S] = s => (s, s)
+
+  def set[S](s: S): State[S, Unit] = _ => ((), s)
+
+  def modify[S](f: S => S): State[S, Unit] =
+    for
+      s <- get
+      _ <- set(f(s))
+    yield ()
+
   def sequence[S, A](l: List[State[S, A]]): State[S, List[A]] =
-    l.foldRight(unit[S, List[A]](Nil)){ (s, acc) =>
-      s.map2(acc) ( _ :: _ )
+//    l.foldRight(unit[S, List[A]](Nil)) { (s, acc) =>
+//      s.map2(acc)(_ :: _)
+//    }
+    // Now we have traverse, we can simplify this code
+    traverse(l)(a => a)
+
+  def traverse[S, A, B](as: List[A])(f: A => State[S, B]): State[S, List[B]] =
+    as.foldRight(unit[S, List[B]](Nil)) { (a, acc) =>
+      f(a).map2(acc)(_ :: _)
     }
 
   extension [S, A](underlying: State[S, A])
     def run(s: S): (A, S) = underlying(s)
-
-    def get: State[S, S] = s => (s, s)
-
-    def set(s: S): State[S, Unit] = _ => ((), s)
-
-    def modify(f: S => S): State[S, Unit] =
-      for
-        s <- get
-        _ <- set(f(s))
-      yield ()
 
     def map[B](f: A => B): State[S, B] =
       flatMap(a => unit(f(a)))
@@ -176,7 +188,6 @@ object State:
         val (a, s2) = underlying(s)
         f(a)(s2)
 
-  def apply[S, A](f: S => (A, S)): State[S, A] = f
 
 enum Input:
   case Coin, Turn
@@ -184,29 +195,50 @@ enum Input:
 case class Machine(locked: Boolean, candies: Int, coins: Int)
 
 object Candy:
+  // With map + sequence:
+//  def simulateMachine(inputs: List[Input]): State[Machine, (Int, Int)] =
+//    for
+//      _ <- State.sequence(inputs.map(i => State.modify(update(i, _))))
+//      s <- State.get
+//    yield (s.coins, s.candies)
+//
+//  def update(i: Input, s: Machine): Machine =
+//    (i, s) match
+//      case (Input.Coin, Machine(_, 0, _)) => s
+//      case (Input.Coin, Machine(false, _, _)) => s
+//      case (Input.Turn, Machine(true, _, _)) => s
+//      case (Input.Coin, Machine(true, candies, coins)) => Machine(false, candies, coins + 1)
+//      case (Input.Turn, Machine(false, candies, coins)) => Machine(true, candies - 1, coins)
+
+
+  // With traverse:
+//  def simulateMachine(inputs: List[Input]): State[Machine, (Int, Int)] =
+//    for
+//      _ <- State.traverse(inputs)(i => State.modify(update(i, _)))
+//      s <- State.get
+//    yield (s.coins, s.candies)
+//
+//  def update(i: Input, s: Machine): Machine =
+//    (i, s) match
+//      case (Input.Coin, Machine(_, 0, _)) => s
+//      case (Input.Coin, Machine(false, _, _)) => s
+//      case (Input.Turn, Machine(true, _, _)) => s
+//      case (Input.Coin, Machine(true, candies, coins)) => Machine(false, candies, coins + 1)
+//      case (Input.Turn, Machine(false, candies, coins)) => Machine(true, candies - 1, coins)
+
+
+  // With traverse + currying
   def simulateMachine(inputs: List[Input]): State[Machine, (Int, Int)] =
-    State {
-      m =>
-        for
-          s <- State.sequence(inputs.map(handle)).get // State[Machine, List[Unit])
-        yield (s.coins, s.candies)
-    }
+    for
+      _ <- State.traverse(inputs)(i => State.modify(update(i)))  // Note: curried function without placeholder
+      s <- State.get
+    yield (s.coins, s.candies)
 
-
-  def handle(input: Input): State[Machine, Unit] = input match
-    case Input.Coin => insertCoin
-    case Input.Turn => turn
-
-  def insertCoin: State[Machine, Unit] =
-    State {
-      case Machine(true, candies, coins) if candies > 0 =>
-        ((), Machine(false, candies, coins + 1))
-      case s => ((), s)
-    }
-
-  def turn: State[Machine, Unit] =
-    State {
-      case Machine(false, candies, coins) =>
-        ((), Machine(true, candies - 1, coins))
-      case s => ((), s)
-    }
+  // Curried update function
+  val update: Input => Machine => Machine = (i: Input) => (s: Machine) =>
+    (i, s) match
+      case (Input.Coin, Machine(_, 0, _)) => s
+      case (Input.Coin, Machine(false, _, _)) => s
+      case (Input.Turn, Machine(true, _, _)) => s
+      case (Input.Coin, Machine(true, candies, coins)) => Machine(false, candies, coins + 1)
+      case (Input.Turn, Machine(false, candies, coins)) => Machine(true, candies - 1, coins)
