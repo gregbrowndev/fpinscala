@@ -118,29 +118,68 @@ object Nonblocking:
 
     /* The code here is very similar. */
     def choiceN[A](p: Par[Int])(ps: List[Par[A]]): Par[A] =
-      ???
+      es => cb => p(es): b =>
+        eval(es)(ps(b)(es)(cb))
 
     def choiceViaChoiceN[A](a: Par[Boolean])(ifTrue: Par[A], ifFalse: Par[A]): Par[A] =
-      ???
+      choiceN(a.map(b => if b then 0 else 1))(List(ifTrue, ifFalse))
 
     def choiceMap[K, V](p: Par[K])(ps: Map[K, Par[V]]): Par[V] =
-      ???
+      es => cb => p.map(b => ps(b)(es)(cb))
 
     /* `chooser` is usually called `flatMap` or `bind`. */
     def chooser[A, B](p: Par[A])(f: A => Par[B]): Par[B] =
-      ???
+      es => cb => p(es)(a => f(a)(es)(cb))
 
     def choiceViaFlatMap[A](p: Par[Boolean])(f: Par[A], t: Par[A]): Par[A] =
-      ???
+      flatMap(p) { b => if b then f else t }
 
     def choiceNViaFlatMap[A](p: Par[Int])(choices: List[Par[A]]): Par[A] =
-      ???
+      flatMap(p) { i => choices(i) }
 
     def join[A](p: Par[Par[A]]): Par[A] =
-      ???
+      es => cb => p(es)(pa => pa(es)(cb))
 
     def joinViaFlatMap[A](a: Par[Par[A]]): Par[A] =
-      ???
+      flatMap(a) { pa => pa }
 
     def flatMapViaJoin[A,B](p: Par[A])(f: A => Par[B]): Par[B] =
-      ???
+      join(p.map(f))
+
+
+/*
+scala>
+import java.util.concurrent.Executors
+import fpinscala.exercises.parallelism.Nonblocking
+import Nonblocking.*
+
+val es = Executors.newFixedThreadPool(2)
+
+
+scala> Par.unit(42).run(es)
+val res0: Int = 42
+
+scala> Par.delay(2 + 3).run(es)
+val res1: Int = 5
+
+scala> Par.chooser(Par.unit("A")) { a => if a == "A" then Par.unit("A was selected") else Par.unit("Something else was selected")}.run(es)
+val res2: String = A was selected
+
+scala> Par.chooser(Par.unit("B")) { a => if a == "A" then Par.unit("A was selected") else Par.unit("Something else was selected")}.run(es)
+val res3: String = Something else was selected
+
+scala> Par.choiceViaFlatMap(Par.delay(true))(Par.unit("True"), Par.unit("False")).run(es)
+val res0: String = True
+
+scala> Par.join(Par.unit(Par.unit(42))).run(es)
+val res0: Int = 42
+
+scala> Par.joinViaFlatMap(Par.unit(Par.unit(42))).run(es)
+val res1: Int = 42
+
+scala> Par.flatMapViaJoin(Par.unit("A"))(a => Par.unit(a + a)).run(es)
+val res4: String = AA
+
+scala> Par.flatMapViaJoin(Par.fork(Par.delay("A")))(a => Par.fork(Par.delay(a + a))).run(es)
+val res6: String = AA
+*/
