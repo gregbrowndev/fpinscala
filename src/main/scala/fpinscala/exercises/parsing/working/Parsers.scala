@@ -5,13 +5,21 @@ import fpinscala.exercises.testing.{Gen, Prop}
 import scala.annotation.targetName
 import scala.util.matching.Regex
 
-trait Parsers[ParseError, Parser[+_]]: 
+trait Parsers[Parser[+_]]:
   /** Parser which consumes one character matching `c`. */
   def char(c: Char): Parser[Char] =
     string(c.toString).map(_.charAt(0))
 
   /** Parser which consumes a string matching `s`. */
   def string(s: String): Parser[String]
+
+  /** Parser which consumes zero or more characters including escaped quotes */
+  def unquotedString: Parser[String] =
+    regex("((?:\\.|[^\"])*)".r)
+
+  /** Parser which consumes a quoted string that may contain escaped quotes */
+  def quotedString: Parser[String] =
+    (string("\"") *> unquotedString <* string("\"")).label("string literal")
 
   /** Parser which consumes characters matching the regex. */
   def regex(r: Regex): Parser[String]
@@ -24,7 +32,7 @@ trait Parsers[ParseError, Parser[+_]]:
     digits.map(_.toIntOption match
       case Some(n) => n
       case None => throw Error("expected an integer")
-    )
+    ).label("integer literal")
 
   /** Parser which consumes a C/Java style floating point literal, e.g .1, -1.0, 1e9, 1E-23, etc.. */
   def doubleString: Parser[String] =
@@ -32,7 +40,7 @@ trait Parsers[ParseError, Parser[+_]]:
 
   /** Floating point literals, converted to a `Double`. */
   def double: Parser[Double] =
-    doubleString.map(_.toDouble)
+    doubleString.map(_.toDouble).label("double literal")
       
   /** Parser which consumes zero or more whitespace characters. */
   def whitespace: Parser[String] = regex("\\s*".r)
@@ -41,6 +49,8 @@ trait Parsers[ParseError, Parser[+_]]:
     // This is the same as the unit combinator?
     // Law: succeed(a).run(s) == Right(a)
     string("").map(_ => a)
+
+  def fail(msg: String): Parser[Nothing]
   
   // Question: Write a parser that recognises zero or more occurrences of `c`
   // and returns the number of occurrences as its value
@@ -76,12 +86,17 @@ trait Parsers[ParseError, Parser[+_]]:
 
   /** A parser that succeeds when given empty input. */
   def eof: Parser[String] =
-    regex("\\z".r)
+    regex("\\z".r).label("expected EOF (unexpected trailing characters)")
 
   extension [A](p: Parser[A])
     def run(input: String): Either[ParseError, A]
     
+    /* Attempt `p` and, if it fails, revert the commit to ensure the input is not consumed */
     def attempt: Parser[A]
+    // Law: p.flatMap(_ => fail("")).attempt | p2 ~= p2
+    // i.e. given that p fails (which we force with fail("")), allow p2 to run on the same
+    // input. However, this is not quite an equality, since if both `p` and `p2` fail, we may
+    // want p2 to contain the errors from both branches
 
     def map[B](f: A => B): Parser[B] =
       // Question 9.8: Implement map in terms of flatMap and/or other combinators
@@ -144,7 +159,6 @@ trait Parsers[ParseError, Parser[+_]]:
     @targetName("discardRight")
     def <*[B](p2: => Parser[Any]): Parser[A] =
       p.map2(p2.slice)((a, _) => a)
-
     
     def as[B](b: B): Parser[B] = p.slice.map(_ => b)
       
@@ -178,10 +192,25 @@ trait Parsers[ParseError, Parser[+_]]:
       // p.many, will consume zero or more occurrences from the remaining
       // input. It wasn't obvious to me that this would be the case.
       p.map2(p.many)(_ :: _)
+      
+    def opt: Parser[Option[A]] =
+      p.map(Some(_)) | succeed(None)
 
     /** The root of the grammar, expects no further input following `p`. */
     def root: Parser[A] =
       p <* eof
+
+    /* Annotate `p` with the label `msg`, if `p` fails assigned message will be `msg` */
+    def label(msg: String): Parser[A]
+
+    /* Annotate `p` with the scope `msg`, if `p` fails add `msg` to the error stack */
+    def scope(msg: String): Parser[A]
+
+    /* Report the error from the branch with the longest match */
+    def furthest: Parser[A]
+
+    /* Report the error from the last branch attempted */
+    def latest: Parser[A]
 
   object Laws:
     def equal[A](p1: Parser[A], p2: Parser[A])(in: Gen[String]): Prop =
@@ -191,4 +220,15 @@ trait Parsers[ParseError, Parser[+_]]:
     def mapLaw[A](p: Parser[A])(in: Gen[String]): Prop =
       equal(p, p.map(a => a))(in)
 
+end Parsers
 
+case class Location(input: String, offset: Int = 0):
+  lazy val line = input.slice(0, offset + 1).count(_ == '\n') + 1
+  lazy val col = input.slice(0, offset + 1).lastIndexOf('\n') match
+    case -1 => offset + 1
+    case lineStart => offset - lineStart
+
+case class ParseError(stack: List[(Location, String)])
+
+//def errorLocation(e: ParseError): Location
+//def errorMessage(e: ParseError): String

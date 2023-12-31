@@ -10,20 +10,22 @@ enum JSON:
 
 object JSON:
 
-  def jsonParser[Err, Parser[+_]](P: Parsers[Err, Parser]): Parser[JSON] =
+  def jsonParser[Err, Parser[+_]](P: Parsers[Parser]): Parser[JSON] =
     import P.*
 
     def token(s: String) = string(s).token
 
-    def jArray: Parser[JSON] =
+    def jArray: Parser[JSON] = (
       token("[")
         *> value.sep(token(",")).map(vs => JArray(vs.toIndexedSeq))
         <* token("]")
+    ).scope("array")
 
-    def jObject: Parser[JSON] =
+    def jObject: Parser[JSON] = (
       token("{")
         *> jKeyValue.sep(token(",")).map(kvs => JObject(kvs.toMap))
         <* token("}")
+    ).scope("object")
 
     def jKeyValue: Parser[(String, JSON)] =
       (jString <* token(":")).slice ** value
@@ -34,14 +36,15 @@ object JSON:
     def jNumber: Parser[JSON] =
       double.map(JNumber(_))
 
-    def jString: Parser[JSON] =
-      // Note: we don't want to consume whitespace after opening quote
-      string("\"") *> regex("((?:\\.|[^\"])+)".r).map(JString(_)) <* token("\"")
+    def jString: Parser[JSON] = 
+      quotedString.token.map(JString(_))
 
     def jBool: Parser[JSON] =
       string("true").as(JBool(true)) | string("false").as(JBool(false))
 
-    def lit: Parser[JSON] = jNull | jNumber | jString | jBool
+    def lit: Parser[JSON] = (
+      jNull | jNumber | jString | jBool
+    ).scope("literal")
 
     def value: Parser[JSON] = lit | jObject | jArray
 
