@@ -26,7 +26,7 @@ trait Parsers[Parser[+_]]:
 
   /** Parser which consumes zero or more numeric characters. */
   def digits: Parser[String] = regex("[0-9]+".r)
-    
+
   /** Parser which consumes zero or more numeric characters and converts them to a number. */
   def number: Parser[Int] =
     digits.map(_.toIntOption match
@@ -41,17 +41,17 @@ trait Parsers[Parser[+_]]:
   /** Floating point literals, converted to a `Double`. */
   def double: Parser[Double] =
     doubleString.map(_.toDouble).label("double literal")
-      
+
   /** Parser which consumes zero or more whitespace characters. */
   def whitespace: Parser[String] = regex("\\s*".r)
-  
+
   def succeed[A](a: A): Parser[A] =
     // This is the same as the unit combinator?
     // Law: succeed(a).run(s) == Right(a)
     string("").map(_ => a)
 
   def fail(msg: String): Parser[Nothing]
-  
+
   // Question: Write a parser that recognises zero or more occurrences of `c`
   // and returns the number of occurrences as its value
   def count(c: Char): Parser[Int] =
@@ -90,7 +90,7 @@ trait Parsers[Parser[+_]]:
 
   extension [A](p: Parser[A])
     def run(input: String): Either[ParseError, A]
-    
+
     /* Attempt `p` and, if it fails, revert the commit to ensure the input is not consumed */
     def attempt: Parser[A]
     // Law: p.flatMap(_ => fail("")).attempt | p2 ~= p2
@@ -120,7 +120,7 @@ trait Parsers[Parser[+_]]:
         a <- p
         b <- p2
       yield f(a, b)
-    
+
     def flatMap[B](f: A => Parser[B]): Parser[B]
 
     def product[B](p2: => Parser[B]): Parser[(A, B)] =
@@ -155,13 +155,13 @@ trait Parsers[Parser[+_]]:
     @targetName("discardLeft")
     def *>[B](p2: => Parser[B]): Parser[B] =
       p.slice.map2(p2)((_, b) => b)
-      
+
     @targetName("discardRight")
     def <*[B](p2: => Parser[Any]): Parser[A] =
       p.map2(p2.slice)((a, _) => a)
-    
+
     def as[B](b: B): Parser[B] = p.slice.map(_ => b)
-      
+
     /** Attempts `p` and consumes any trailing whitespace characters. */
     def token: Parser[A] =
       p.attempt <* whitespace
@@ -173,7 +173,7 @@ trait Parsers[Parser[+_]]:
     /** One or more repetitions of `p`, separated by `separator` (omitted in the result). */
     def sep1(separator: Parser[Any]): Parser[List[A]] =
       p.map2((separator *> p).many)(_ :: _)
-    
+
     def listOfN(n: Int): Parser[List[A]] =
       // Question 9.4: Implement listOfN using map2 and succeed
       if n <= 0 then succeed(Nil)
@@ -192,7 +192,7 @@ trait Parsers[Parser[+_]]:
       // p.many, will consume zero or more occurrences from the remaining
       // input. It wasn't obvious to me that this would be the case.
       p.map2(p.many)(_ :: _)
-      
+
     def opt: Parser[Option[A]] =
       p.map(Some(_)) | succeed(None)
 
@@ -227,6 +227,16 @@ case class Location(input: String, offset: Int = 0):
   lazy val col = input.slice(0, offset + 1).lastIndexOf('\n') match
     case -1 => offset + 1
     case lineStart => offset - lineStart
+    
+  def toError(msg: String): ParseError =
+    ParseError(List((this, msg)))
+    
+  def region: String =
+    input.substring(offset)
+    
+  def moveOffset(change: Int): Location =
+    Location(input, offset + change)
+    
 
 case class ParseError(stack: List[(Location, String)])
 
