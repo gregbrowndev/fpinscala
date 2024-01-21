@@ -38,7 +38,7 @@ object UnitTestParser extends Parsers[UnitTestParser.Parser]:
 
   import Result.{Failure, Success}
 
-  def succeed[A](a: A): Parser[A] =
+  override def succeed[A](a: A): Parser[A] =
     _ => Success(a, 0)
 
   def fail(msg: String): Parser[Nothing] =
@@ -100,3 +100,7 @@ object UnitTestParser extends Parsers[UnitTestParser.Parser]:
 
     def label(msg: String): Parser[A] =
       l => p(l).mapError(_.label(msg))
+
+  extension [A](p: Parser[A])
+    override def furthest: Parser[A] = ???
+    override def latest: Parser[A] = ???

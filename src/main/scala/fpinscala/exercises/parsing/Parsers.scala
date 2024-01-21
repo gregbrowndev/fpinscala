@@ -231,14 +231,18 @@ case class Location(input: String, offset: Int = 0):
   def toError(msg: String): ParseError =
     ParseError(List((this, msg)))
     
-  def region: String =
+  def remaining: String =
     input.substring(offset)
     
-  def moveOffset(change: Int): Location =
-    Location(input, offset + change)
-    
+  def advanceBy(change: Int): Location =
+    copy(offset = offset + change)
 
-case class ParseError(stack: List[(Location, String)])
+  def slice(n: Int) = input.substring(offset, offset + n)
+
+case class ParseError(stack: List[(Location, String)]):
+  def push(loc: Location, msg: String): ParseError = ???
+
+  def label(s: String): ParseError = ???
 
 //def errorLocation(e: ParseError): Location
 //def errorMessage(e: ParseError): String

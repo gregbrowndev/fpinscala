@@ -21,14 +21,14 @@ object SimpleParsers extends Parsers[SimpleParser]:
 
   override def string(s: String): SimpleParser[String] =
     SimpleParser: location =>
-      if location.region.startsWith(s)
-      then (Right(s), location.moveOffset(s.length))
+      if location.remaining.startsWith(s)
+      then (Right(s), location.advanceBy(s.length))
       else (Left(location.toError("Expected: " + s)), location)
 
   override def regex(r: Regex): SimpleParser[String] =
     SimpleParser: location =>
-      r.findPrefixOf(location.region) match
-        case Some(matched) => (Right(matched), location.moveOffset(matched.length))
+      r.findPrefixOf(location.remaining) match
+        case Some(matched) => (Right(matched), location.advanceBy(matched.length))
         case None => (Left(location.toError("No match for regex")), location)
 
   override def fail(msg: String): SimpleParser[Nothing] =

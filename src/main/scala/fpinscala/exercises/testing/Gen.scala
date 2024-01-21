@@ -169,6 +169,9 @@ object Gen:
   val boolean: Gen[Boolean] = Gen(State(RNG.boolean))
   val int: Gen[Int] = Gen(State(RNG.int))
   val double: Gen[Double] = Gen(State(RNG.double))
+  
+  def stringN(n: Int): Gen[String] =
+    listOfN(n, choose(0, 127)).map(_.map(_.toChar).mkString)
 
   def choose(start: Int, stopExclusive: Int): Gen[Int] =
     State(RNG.nonNegativeInt).map(n => start + n % (stopExclusive - start))
@@ -183,6 +186,9 @@ object Gen:
   def pair(start: Int, stopExclusive: Int): Gen[(Int, Int)] =
     val intGen = choose(start, stopExclusive)
     intGen.map2(intGen){ (_, _) }
+
+  def listOfN[A](n: Int, g: Gen[A]): Gen[List[A]] =
+    State.sequence(List.fill(n)(g))
 
   object `**`:  // note: backticks are escapes, not part of the object name
     def unapply[A, B](p: (A, B)): Option[(A, B)] = Some(p)
