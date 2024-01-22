@@ -20,7 +20,7 @@ object Monoid:
     val empty = Nil
 
   // Question 10.1
-  lazy val intAddition: Monoid[Int] = new:
+  given intAddition: Monoid[Int] = new:
     override def combine(a1: Int, a2: Int): Int = a1 + a2
     override def empty: Int = 0
 
@@ -223,20 +223,41 @@ object Monoid:
       case WC.Stub(a) => unstub(a)
       case WC.Part(l, w, r) => unstub(l) + w + unstub(r)
 
+  // Exercise 10.16: Implement productMonoid
+  // Note: the real power of Monoids is that they composable - if A and B are monoids
+  // then (A, B) is also a monoid!
   given productMonoid[A, B](using ma: Monoid[A], mb: Monoid[B]): Monoid[(A, B)] with
-    def combine(x: (A, B), y: (A, B)) = ???
-    val empty = ???
+    def combine(x: (A, B), y: (A, B)) =
+      (ma.combine(x(0), y(0)), mb.combine(x(1), y(1)))
 
+    val empty = (ma.empty, mb.empty)
+
+  // Exercise 10.17: Write a monoid instance for functions whose results are monoids
   given functionMonoid[A, B](using mb: Monoid[B]): Monoid[A => B] with
-    def combine(f: A => B, g: A => B) = ???
-    val empty: A => B = a => ???
+    def combine(f: A => B, g: A => B) = a => mb.combine(f(a), g(a))
+    val empty: A => B = a => mb.empty
 
+  // Exercise 10.18: Implement the bag function to count the number of occurrences of words in the list
   given mapMergeMonoid[K, V](using mv: Monoid[V]): Monoid[Map[K, V]] with
-    def combine(a: Map[K, V], b: Map[K, V]) = ???
-    val empty = ???
+    def combine(a: Map[K, V], b: Map[K, V]) =
+      foldLeft((a.keySet ++ b.keySet).toList)(empty): (acc, k) =>
+        acc.updated(k, mv.combine(
+          a.getOrElse(k, mv.empty),
+          b.getOrElse(k, mv.empty)
+        ))
+
+    val empty = Map()
 
   def bag[A](as: IndexedSeq[A]): Map[A, Int] =
-    ???
+    // foldMapV(as, mapMergeMonoid)(a => Map(a -> 1))
+    // Note: the above works but we're using foldMapV defined on Monoid which we defined without using a given clause
+    // instead, we can import the Foldable instance for IndexedSeq
+    import Foldable.given
+
+    given newMonoid: Monoid[Option[Interval]] = intervalMonoid
+
+    as.foldMap(a => Map(a -> 1))
+
 
 end Monoid
 
@@ -253,6 +274,8 @@ scala> Test.testWCMonoid()
 + OK, passed 100 tests.
 ()
 
+scala> Test.testBag()
+Map(red -> 2, green -> 1, blue -> 1, black -> 1)
 */
 object Test:
   import Monoid.*
@@ -268,3 +291,6 @@ object Test:
 
   def testWCMonoid(): Unit =
     println(monoidLaws(wcMonoid, wcGen).run())
+
+  def testBag(): Unit =
+    println(bag(List("red", "green", "red", "blue", "black").toIndexedSeq))
