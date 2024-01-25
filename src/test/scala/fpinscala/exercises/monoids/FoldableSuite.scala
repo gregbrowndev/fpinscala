@@ -9,7 +9,7 @@ import fpinscala.exercises.datastructures.Tree
 import fpinscala.exercises.datastructures.Tree.{Branch, Leaf}
 import fpinscala.exercises.datastructures.TreeSuite.genIntTree
 import fpinscala.exercises.monoids.Foldable.*
-import fpinscala.exercises.monoids.Monoid.*
+import fpinscala.exercises.monoids.Monoid.{intAddition, *}
 
 class FoldableSuite extends PropSuite:
   import Foldable.given

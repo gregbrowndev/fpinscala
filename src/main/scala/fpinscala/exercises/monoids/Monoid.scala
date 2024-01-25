@@ -20,7 +20,7 @@ object Monoid:
     val empty = Nil
 
   // Question 10.1
-  given intAddition: Monoid[Int] = new:
+  lazy val intAddition: Monoid[Int] = new:
     override def combine(a1: Int, a2: Int): Int = a1 + a2
     override def empty: Int = 0
 
@@ -253,8 +253,7 @@ object Monoid:
     // Note: the above works but we're using foldMapV defined on Monoid which we defined without using a given clause
     // instead, we can import the Foldable instance for IndexedSeq
     import Foldable.given
-
-    given newMonoid: Monoid[Option[Interval]] = intervalMonoid
+    given Monoid[Int] = intAddition
 
     as.foldMap(a => Map(a -> 1))
 
