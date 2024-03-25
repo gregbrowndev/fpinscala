@@ -158,8 +158,8 @@ object State:
 
   def modify[S](f: S => S): State[S, Unit] =
     for
-      s <- get
-      _ <- set(f(s))
+      s <- get // Gets the current state and assigns it to `s`.
+      _ <- set(f(s)) // Sets the new state to `f` applied to `s`.
     yield ()
 
   def sequence[S, A](l: List[State[S, A]]): State[S, List[A]] =
@@ -188,8 +188,8 @@ object State:
 
     def flatMap[B](f: A => State[S, B]): State[S, B] =
       s =>
-        val (a, s2) = underlying(s)
-        f(a)(s2)
+        val (a, s1) = underlying(s)
+        f(a)(s1)
 
 
 enum Input:
