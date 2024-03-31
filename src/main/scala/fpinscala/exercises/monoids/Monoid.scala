@@ -1,6 +1,6 @@
 package fpinscala.exercises.monoids
 
-import fpinscala.answers.monoids.Monoid
+import fpinscala.exercises.monoids.Monoid
 import fpinscala.exercises.parallelism.Nonblocking.*
 
 import scala.annotation.tailrec

@@ -1,8 +1,8 @@
 package fpinscala.exercises.applicative
 
-import fpinscala.answers.monads.Functor
-import fpinscala.answers.monoids.Monoid
-import fpinscala.answers.state.State
+import fpinscala.exercises.monads.Functor
+import fpinscala.exercises.monoids.Monoid
+import fpinscala.exercises.state.State
 
 trait Monad[F[_]] extends Applicative[F]:
   F =>

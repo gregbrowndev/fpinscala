@@ -1,8 +1,8 @@
 package fpinscala.exercises.applicative
 
-import fpinscala.answers.monads.Functor
-import fpinscala.answers.monoids.Monoid
-import fpinscala.answers.state.State
+import fpinscala.exercises.monads.Functor
+import fpinscala.exercises.monoids.Monoid
+import fpinscala.exercises.state.State
 
 trait Applicative[F[_]] extends Functor[F]:
   self =>
@@ -98,7 +98,7 @@ object Applicative:
   enum Validated[+E, +A]:
     case Valid(get: A) extends Validated[Nothing, A]
     case Invalid(error: E) extends Validated[E, Nothing]
-  
+
   object Validated:
     // Exercise 12.6: Implement an applicative instance for Validated.
     // Note: In chapter 4, we modified the signature of map2 to include an

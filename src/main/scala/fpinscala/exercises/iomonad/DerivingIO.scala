@@ -388,7 +388,11 @@ object IO3:
       flatMap(a => Return(f(a)))
 
     // Exercise 3: Implement a `Free` interpreter which works for any `Monad`
-    def run(using F: Monad[F]): F[A] = ???
+    def run(using F: Monad[F]): F[A] = step match
+      case Return(a) => F.unit(a)
+      case Suspend(fa) => fa
+      case FlatMap(Suspend(fa), f) => fa.flatMap(a => f(a).run)
+      case FlatMap(_, _) => sys.error("Impossible, since `step` eliminates these cases")
 
     // return either a `Suspend`, a `Return`, or a right-associated `FlatMap`
     @annotation.tailrec
@@ -406,7 +410,7 @@ object IO3:
 
     // Exercise 4: Implement translate using runFree
     def translate[G[_]](fToG: [x] => F[x] => G[x]): Free[G, A] =
-      ???
+      runFree([x] => (fx: F[x]) => Suspend(fToG(fx)))
 
   import Free.{Return, Suspend, FlatMap}
 
@@ -414,13 +418,19 @@ object IO3:
 
     // Exercise 1: Implement a free monad for any type constructor F
     given freeMonad[F[_]]: Monad[[x] =>> Free[F, x]] with
-      def unit[A](a: => A) = ???
+      def unit[A](a: => A) = Return(a)
       extension [A](fa: Free[F, A])
-        def flatMap[B](f: A => Free[F, B]) = ???
+        def flatMap[B](f: A => Free[F, B]) = fa.flatMap(f)
 
     // Exercise 2: Implement runTrampoline
     extension [A](fa: Free[Function0, A])
-      def runTrampoline: A = ???
+      def runTrampoline: A = fa match
+        case Return(a) => a
+        case Suspend(fa) => fa()
+        case FlatMap(s, f) => s match
+          case Return(a) => f(a).runTrampoline
+          case Suspend(fa) => f(fa()).runTrampoline
+          case FlatMap(t, g) => t.flatMap(a => g(a).flatMap(f)).runTrampoline
 
   /*
   The type constructor `F` lets us control the set of external requests our
@@ -489,7 +499,7 @@ object IO3:
   // Exercise 4: Implement unsafeRunConsole
   extension [A](fa: Free[Console, A])
     def unsafeRunConsole: A =
-      ???
+      fa.translate([x] => (c: Console[x]) => c.toThunk).runTrampoline
 
   /*
   There is nothing about `Free[Console, A]` that requires we interpret
@@ -556,15 +566,30 @@ object IO3:
   import java.nio.*
   import java.nio.channels.*
 
-  def read(file: AsynchronousFileChannel,
-           fromPosition: Long,
-           numBytes: Int): Free[Par, Either[Throwable, Array[Byte]]] =
-    ???
+  def read(
+    file: AsynchronousFileChannel,
+    fromPosition: Long,
+    numBytes: Int
+  ): Free[Par, Either[Throwable, Array[Byte]]] =
+    Suspend(Par.async: (cb: Either[Throwable, Array[Byte]] => Unit) =>
+      val buf = ByteBuffer.allocate(numBytes)
+      val onCompletion = new CompletionHandler[Integer, Unit]:
+        override def completed(bytesRead: Integer, ignore: Unit): Unit =
+          val arr = new Array[Byte](bytesRead)
+          buf.slice.get(arr, 0, bytesRead)
+          cb(Right(arr))
+        override def failed(err: Throwable, ignore: Unit): Unit =
+          cb(Left(err))
+
+      file.read(buf, fromPosition, (), onCompletion)
+    )
+
 
 end IO3
 
 object IO4:
-
+  // Here we have made Free covariant in F so that we don't have to manuallly
+  // cast F[_] to F[_] 
   enum Free[+F[_], A]:
     case Return(a: A) extends Free[Nothing, A]
     case Suspend(s: F[A])

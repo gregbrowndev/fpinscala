@@ -326,13 +326,13 @@ enum LazyList[+A]:
 //      case _ => None
 //    }
 
-  def scanRight[B](b: => B)(f: (A, => B) => B): LazyList[B] =
-    foldRight(LazyList(b)) {
-      case s @ (a, Cons(h, _)) => cons(f(a, h()), s(1))
-    }
+//  def scanRight[B](b: => B)(f: (A, => B) => B): LazyList[B] =
+//    foldRight(LazyList(b)) {
+//      case s @ (a, Cons(h, _)) => cons(f(a, h()), s(1))
+//    }
 
   // another way
-  def scanRight2[B](b: => B)(f: (A, => B) => B): LazyList[B] =
+  def scanRight[B](b: => B)(f: (A, => B) => B): LazyList[B] =
     foldRight((b, LazyList(b))) { (a, b) =>
       lazy val acc = b
       val next = f(a, acc(0))

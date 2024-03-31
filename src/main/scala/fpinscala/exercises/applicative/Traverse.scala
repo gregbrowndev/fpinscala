@@ -5,7 +5,7 @@ import fpinscala.exercises.state.State
 import fpinscala.exercises.monoids.{Monoid, Foldable}
 import Applicative.Const
 
-trait Traverse[F[_]] extends Functor[F], Foldable[F]: 
+trait Traverse[F[_]] extends Functor[F], Foldable[F]:
   self =>
 
   extension [A](fa: F[A])
@@ -22,16 +22,17 @@ trait Traverse[F[_]] extends Functor[F], Foldable[F]:
   // First, we'll need to define the Id monad that we'll use as the
   // applicative in traverse
   type Id[A] = A
-  given idMonad: Monad[Id] with
-    override def unit[A](a: => A): Id[A] = a
-    extension [A](fa: Id[A]) 
-      override def flatMap[B](f: A => Id[B]): Id[B] = f(fa)
+  object Id:
+    given idMonad: Monad[Id] with
+      override def unit[A](a: => A): Id[A] = a
+      extension [A](fa: Id[A]) 
+        override def flatMap[B](f: A => Id[B]): Id[B] = f(fa)
   
   extension [A](fa: F[A])
     def map[B](f: A => B): F[B] =
       // Traversing with the Id type constructor results in the definition 
       // of map!
-      fa.traverse[Id, B](f)(using idMonad)
+      fa.traverse[Id, B](f)(using Id.idMonad)
 
     override def foldMap[B](f: A => B)(using mb: Monoid[B]): B =
       fa.traverse[Const[B, _], Nothing](f)
@@ -71,7 +72,7 @@ trait Traverse[F[_]] extends Functor[F], Foldable[F]:
     extension [A](fga: F[G[A]])
       override def traverse[H[_]: Applicative, B](f: A => H[B]): H[F[G[B]]] =
         self.traverse(fga)(ga => ga.traverse(f))
-        
+
   // Exercise 12.20: Implement composeM on the Monad companion object
 
 case class Tree[+A](head: A, tail: List[Tree[A]])
