@@ -4,6 +4,17 @@ import scala.reflect.ClassTag
 
 import fpinscala.answers.monads.*
 
+/** Quicksort in Python for reference
+def quicksort(l: list[int]) -> list[int]:
+    if l.empty: []
+        return []
+    else:
+        head, *tail = l
+        left = [x for x in tail if x <= head]
+        right = [x for x in tail if x > head]
+        return quicksort(left) ++ head ++ quicksort(right)
+ */
+
 object Mutable:
   def quicksort(xs: List[Int]): List[Int] =
     if xs.isEmpty then xs else
@@ -17,7 +28,7 @@ object Mutable:
         val pivotVal = arr(pivot)
         swap(pivot, r)
         var j = l
-        for i <- l until r if arr(i) < pivotVal do
+        for  i <- l until r if arr(i) < pivotVal do
           swap(i, j)
           j += 1
         swap(j, r)
@@ -83,8 +94,24 @@ final class STArray[S, A] private (private var value: Array[A]):
   def freeze: ST[S, List[A]] = ST(value.toList)
 
   // Exercise 14.1
+  // Note: my implementation is given below, fill2, while the answer is
+  // given in fill. The model answer creates a state action (or tag) with
+  // unit as the initial state. It then folds over xs and chains together a
+  // sequence of write actions on the STArray, producing a single ST
+  // action. I'm not sure if my code solves the problem. It looks like I do
+  // also create a single state action but the action performs the entire
+  // fold in one go. It also doesn't use the write combinator.
+  def fill2(xs: Map[Int, A]): ST[S, Unit] = ST.lift[S, Unit]:
+    s =>
+      xs.foldRight(value):
+        case ((i, a), b) =>
+          b(i) = a
+          b
+      ((), s)
+
   def fill(xs: Map[Int, A]): ST[S, Unit] =
-    ???
+    xs.foldRight(ST[S, Unit](())):
+      case ((k, v), st) => st.flatMap(_ => write(k, v))
 
   def swap(i: Int, j: Int): ST[S, Unit] =
     for
@@ -105,11 +132,36 @@ object STArray:
 object Immutable:
   // Exercise 14.2
   def partition[S](a: STArray[S, Int], l: Int, r: Int, pivot: Int): ST[S, Int] =
-    ???
+    for
+      vp <- a.read(pivot)
+      _ <- a.swap(pivot, r)
+      sj <- STRef(l)
+      _ <- (l until r).foldLeft(ST[S, Unit](()))((s, i) =>
+        for
+          _ <- s
+          vi <- a.read(i)
+          _ <- if vi < vp then
+            for
+              j <- sj.read
+              _ <- a.swap(i, j)
+              _ <- sj.write(j + 1)
+            yield ()
+          else  ST[S, Unit](())
+        yield ()
+      )
+      pi <- sj.read
+      _ <- a.swap(pi, r)
+    yield pi
 
   // Exercise 14.2
   def qs[S](a: STArray[S,Int], l: Int, r: Int): ST[S, Unit] =
-    ???
+    if l < r then
+      for
+        pi <- partition(a, l, r, l + (r - l) / 2)
+        _ <- qs(a, l, pi - 1)
+        _ <- qs(a, r, pi + 1)
+      yield ()
+    else ST[S, Unit](())
 
   def quicksort(xs: List[Int]): List[Int] =
     if xs.isEmpty then xs else ST.run([s] => () =>
